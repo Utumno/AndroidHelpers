@@ -31,12 +31,11 @@ import android.util.Log;
  */
 public final class FileIO {
 
-	private static final boolean APPEND = true;
-
 	private FileIO() {}
 
 	private static final String TAG = FileIO.class.getSimpleName();
 	private static final int OUTPUT_BUFFER_SIZE = 8192;
+	private static final boolean APPEND = true;
 	private static final boolean WARN = false;
 
 	// =========================================================================
@@ -175,7 +174,7 @@ public final class FileIO {
 						OUTPUT_BUFFER_SIZE);
 				// FIXME writes them all ?
 				buffer.write(bytes);
-				Log.w("file io ", file.getAbsolutePath());
+				w(file.getAbsolutePath());
 				// You do typically need to flush the decorator in the
 				// non-exception case - see :
 				// http://stackoverflow.com/a/2732760/281545
