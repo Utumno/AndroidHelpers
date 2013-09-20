@@ -390,10 +390,11 @@ public final class FileIO {
 			if (dirInPublicStorage != null) {
 				logdir = new File(Environment
 						.getExternalStoragePublicDirectory(dirInPublicStorage)
-						.getAbsolutePath());
+						.getAbsolutePath()
+					+ File.separator + rootDir);
 			} else {
 				logdir = new File(Environment.getExternalStorageDirectory()
-						.getAbsolutePath());
+						.getAbsolutePath() + File.separator + rootDir);
 			}
 			// have the object build the directory structure, if needed.
 			if (FileIO.createDirExternal(logdir)) {
