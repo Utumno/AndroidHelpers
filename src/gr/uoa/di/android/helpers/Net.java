@@ -3,14 +3,37 @@ package gr.uoa.di.android.helpers;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
+import java.net.SocketException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.http.conn.util.InetAddressUtils;
 
-public class Net {
+import android.annotation.TargetApi;
+import android.os.Build;
+
+/**
+ * Needed manifest permissions :
+ *
+ * <uses-permission android:name="android.permission.INTERNET" />
+ * <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+ *
+ * Test functions :
+ *
+ * Utils.getMACAddress("wlan0"); Utils.getMACAddress("eth0");
+ * Utils.getIPAddress(true); // IPv4 Utils.getIPAddress(false); // IPv6
+ *
+ * @see http://stackoverflow.com/questions/6064510/how-to-get-ip-address-of-the-
+ *      device
+ */
+public final class Net {
+
+	private Net() {}
 
 	/**
 	 * Convert byte array to hex string
@@ -23,7 +46,7 @@ public class Net {
 		for (int idx = 0; idx < bytes.length; idx++) {
 			int intVal = bytes[idx] & 0xff;
 			if (intVal < 0x10) sbuf.append("0");
-			sbuf.append(Integer.toHexString(intVal).toUpperCase());
+			sbuf.append(Integer.toHexString(intVal).toUpperCase(Locale.US));
 		}
 		return sbuf.toString();
 	}
@@ -32,25 +55,26 @@ public class Net {
 	 * Get utf8 byte array.
 	 *
 	 * @param str
-	 * @return array of NULL if error was found
+	 *            should be "UTF-8" encoded
+	 * @return array or null if UnsupportedEncodingException was thrown
 	 */
 	public static byte[] getUTF8Bytes(String str) {
 		try {
 			return str.getBytes("UTF-8");
-		} catch (Exception ex) {
+		} catch (UnsupportedEncodingException ex) {
 			return null;
 		}
 	}
 
 	/**
-	 * Load UTF8withBOM or any ansi text file.
+	 * Load UTF8withBOM or any ansi text file. It drops the BOM from UTF8 files
+	 * if present
 	 *
 	 * @param filename
 	 * @return
-	 * @throws java.io.IOException
+	 * @throws IOException
 	 */
-	public static String loadFileAsString(String filename)
-			throws java.io.IOException {
+	public static String loadFileAsString(String filename) throws IOException {
 		final int BUFLEN = 1024;
 		BufferedInputStream is = new BufferedInputStream(new FileInputStream(
 				filename), BUFLEN);
@@ -74,7 +98,7 @@ public class Net {
 		} finally {
 			try {
 				is.close();
-			} catch (Exception ex) {}
+			} catch (IOException ex) {}
 		}
 	}
 
@@ -85,7 +109,13 @@ public class Net {
 	 *            eth0, wlan0 or NULL=use first interface
 	 * @return mac address or empty string
 	 */
+	@TargetApi(Build.VERSION_CODES.GINGERBREAD)
 	public static String getMACAddress(String interfaceName) {
+		if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
+			throw new IllegalStateException(
+					"You use getMACAddress() only after API "
+						+ Build.VERSION_CODES.GINGERBREAD);
+		}
 		try {
 			List<NetworkInterface> interfaces = Collections
 					.list(NetworkInterface.getNetworkInterfaces());
@@ -102,7 +132,7 @@ public class Net {
 				if (buf.length() > 0) buf.deleteCharAt(buf.length() - 1);
 				return buf.toString();
 			}
-		} catch (Exception ex) {} // for now eat exceptions
+		} catch (SocketException e) {} // for now eat exceptions
 		return "";
 		/*
 		 * try { // this is so Linux hack return
@@ -128,14 +158,14 @@ public class Net {
 						.getInetAddresses());
 				for (InetAddress addr : addrs) {
 					if (!addr.isLoopbackAddress()) {
-						String sAddr = addr.getHostAddress().toUpperCase();
+						String sAddr = addr.getHostAddress();
 						boolean isIPv4 = InetAddressUtils.isIPv4Address(sAddr);
 						if (useIPv4) {
 							if (isIPv4) return sAddr;
 						} else {
 							if (!isIPv4) {
-								int delim = sAddr.indexOf('%'); // drop ip6 port
-																// suffix
+								// drop ip6 port suffix
+								int delim = sAddr.indexOf('%');
 								return delim < 0 ? sAddr : sAddr.substring(0,
 									delim);
 							}
@@ -143,7 +173,7 @@ public class Net {
 					}
 				}
 			}
-		} catch (Exception ex) {} // for now eat exceptions
+		} catch (SocketException e) {} // for now eat exceptions
 		return "";
 	}
 }

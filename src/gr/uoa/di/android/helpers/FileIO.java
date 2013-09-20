@@ -37,6 +37,7 @@ public final class FileIO {
 	private static final int OUTPUT_BUFFER_SIZE = 8192;
 	private static final boolean APPEND = true;
 	private static final boolean WARN = false;
+	public static final Object FILE_STORE_LOCK = new Object();
 
 	// =========================================================================
 	// Read file from external storage - uses the Java API for files
@@ -187,7 +188,7 @@ public final class FileIO {
 	// Write to internal storage in directory - apparently with standard Java IO
 	// =========================================================================
 	public static void append(final Context context, final String filename,
-			final String dirname, final byte[] bytes, final int mode)
+			final String dirname, final byte[] bytes)
 			throws FileNotFoundException, IOException {
 		final File dir = createDirInternal(context, dirname); // throws
 		final File file = new File(dir.getAbsolutePath(), filename);
@@ -195,7 +196,7 @@ public final class FileIO {
 	}
 
 	// =========================================================================
-	// application's storage - those methods need a Context
+	// Application's storage - those methods need a Context
 	// =========================================================================
 	/**
 	 * Append the data to the file named filename written in the application's
@@ -247,23 +248,31 @@ public final class FileIO {
 		context.deleteFile(filename);
 	}
 
+	/**
+	 * Wrapper around {@link Environment#getExternalStorageState()}.
+	 *
+	 * @return true if External Storage is both available and writable
+	 * @see <a
+	 *      href=http://developer.android.com/guide/topics/data/data-storage.html
+	 *      #filesExternal>Using the External Storage</a>
+	 */
 	public static boolean isExternalStoragePresent() {
-		boolean mExternalStorageAvailable = false;
-		boolean mExternalStorageWriteable = false;
+		boolean externalStorageAvailable = false;
+		boolean externalStorageWriteable = false;
 		String state = Environment.getExternalStorageState();
 		if (Environment.MEDIA_MOUNTED.equals(state)) {
 			// We can read and write the media
-			mExternalStorageAvailable = mExternalStorageWriteable = true;
+			externalStorageAvailable = externalStorageWriteable = true;
 		} else if (Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
 			// We can only read the media
-			mExternalStorageAvailable = true;
-			mExternalStorageWriteable = false;
+			externalStorageAvailable = true;
+			externalStorageWriteable = false;
 		} else {
 			// Something else is wrong. It may be one of many other states, but
 			// all we need to know is we can neither read nor write
-			mExternalStorageAvailable = mExternalStorageWriteable = false;
+			externalStorageAvailable = externalStorageWriteable = false;
 		}
-		return (mExternalStorageAvailable) && (mExternalStorageWriteable);
+		return (externalStorageAvailable) && (externalStorageWriteable);
 	}
 
 	/**
@@ -296,7 +305,7 @@ public final class FileIO {
 			final String directoryName) throws IOException {
 		File directory = new File(ctx.getFilesDir(), directoryName);
 		if (directory.mkdirs() || directory.isDirectory()) return directory;
-		throw new IOException("Cannot crete dir " + directoryName
+		throw new IOException("Cannot create directory " + directoryName
 			+ " in internal storage");
 	}
 
@@ -324,8 +333,7 @@ public final class FileIO {
 	public static File fileExternalApplicationStorage(final Context ctx,
 			final String rootDir, final String filename) throws IOException {
 		// create a File object for the parent directory
-		final boolean externalStoragePresent = isExternalStoragePresent();
-		if (externalStoragePresent) {
+		if (isExternalStoragePresent()) {
 			File logdir = new File(ctx.getExternalFilesDir(null)
 					.getAbsolutePath() + File.separator + rootDir);
 			// have the object build the directory structure, if needed.
@@ -333,17 +341,16 @@ public final class FileIO {
 				// Log.w(TAG, "logdir : " + logdir.getAbsolutePath());
 				// create a *File object* for the output file - can't fail
 				return new File(logdir, filename);
-			} else {
-				throw new IOException("Can not create folder "
-					+ logdir.getAbsolutePath());
 			}
-		} else throw new IOException(
-				"External storage not present or not writable");
+			throw new IOException("Can not create folder "
+				+ logdir.getAbsolutePath());
+		}
+		throw new IOException("External storage not present or not writable");
 	}
 
 	/**
 	 * Creates the File instance where the data is persisted in *external
-	 * storage along with user files (debugging purposes *but not in
+	 * storage* along with user files (debugging purposes *but not in
 	 * production*). The files will NOT be removed on application uninstall - so
 	 * use this while installing and uninstalling to keep the logs around. If
 	 * the external folder is not available or if the directory can not be
@@ -378,9 +385,8 @@ public final class FileIO {
 			final String filename, final String dirInPublicStorage)
 			throws IOException {
 		// create a File object for the parent directory
-		final boolean externalStoragePresent = isExternalStoragePresent();
-		if (externalStoragePresent) {
-			File logdir = null;
+		if (isExternalStoragePresent()) {
+			File logdir;
 			if (dirInPublicStorage != null) {
 				logdir = new File(Environment
 						.getExternalStoragePublicDirectory(dirInPublicStorage)
@@ -391,26 +397,69 @@ public final class FileIO {
 			}
 			// have the object build the directory structure, if needed.
 			if (FileIO.createDirExternal(logdir)) {
-				// Log.w(TAG, "logdir : " + logdir.getAbsolutePath());
-				// create a *File object* for the output file - can't fail
+				// create a File *instance* for the output file - can't fail
 				return new File(logdir, filename);
-			} else {
-				throw new IOException("Can not create folder "
-					+ logdir.getAbsolutePath());
 			}
-		} else throw new IOException(
-				"External storage not present or not writable");
+			throw new IOException("Can not create folder "
+				+ logdir.getAbsolutePath());
+		}
+		throw new IOException("External storage not present or not writable");
+	}
+
+	/**
+	 * Copies the inputFilename (an absolute path) to destinationFilename (a
+	 * filename) in *external public storage* in the directory destinationDir
+	 * relative to the root of external public storage
+	 *
+	 * @param inputFilename
+	 *            must be an *absolute path* to a file in internal storage
+	 * @param destinationDir
+	 * @param destinationFilename
+	 * @throws FileNotFoundException
+	 *             if either the destination or the inputFileName strings do not
+	 *             point to an existent path
+	 * @throws IOException
+	 *             if the copying operation fails
+	 */
+	public static void copyFileFromInternalToExternalStorage(
+			String inputFilename, String destinationDir,
+			String destinationFilename) throws IOException,
+			FileNotFoundException {
+		FileInputStream fis = new FileInputStream(inputFilename);
+		try {
+			File dest = fileExternalPublicStorage(destinationDir,
+				destinationFilename, null);
+			OutputStream output = new FileOutputStream(dest);
+			try {
+				// transfer bytes from the inputfile to the outputfile
+				byte[] buffer = new byte[1024];
+				int length;
+				while ((length = fis.read(buffer)) > 0) {
+					output.write(buffer, 0, length);
+				}
+			} finally {
+				close(output);
+			}
+		} finally {
+			close(fis);
+		}
 	}
 
 	// =========================================================================
 	// Helpers
 	// =========================================================================
 	private static void close(final Closeable closeable) {
+		if (closeable == null)
+			throw new NullPointerException("Trying to close a null Closeable");
 		try {
 			closeable.close();
 		} catch (IOException e) {
-			w("Exception thrown while closing " + closeable + "\n" + e);
+			w("Exception thrown while closing " + closeable, e);
 		}
+	}
+
+	private static void w(String string, Throwable t) {
+		if (WARN) Log.w(TAG, string, t);
 	}
 
 	private static void w(final String string) {
@@ -418,7 +467,7 @@ public final class FileIO {
 	}
 
 	// =========================================================================
-	// private execute around methods - the data is supplied in the public API
+	// Private execute around methods - the data is supplied in the public API
 	// =========================================================================
 	/**
 	 * Writes to file and closes it. Will create the file if not existent. It
