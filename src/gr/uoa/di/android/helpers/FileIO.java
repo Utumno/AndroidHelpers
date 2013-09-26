@@ -15,6 +15,8 @@ import java.io.OutputStreamWriter;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.List;
 
 import android.content.Context;
 import android.os.Environment;
@@ -37,7 +39,6 @@ public final class FileIO {
 	private static final int OUTPUT_BUFFER_SIZE = 8192;
 	private static final boolean APPEND = true;
 	private static final boolean WARN = false;
-	public static final Object FILE_STORE_LOCK = new Object();
 
 	// =========================================================================
 	// Read file from external storage - uses the Java API for files
@@ -444,6 +445,81 @@ public final class FileIO {
 		} finally {
 			close(fis);
 		}
+	}
+
+	// =========================================================================
+	// IO Utils
+	// =========================================================================
+	/**
+	 * Counts the size of a directory recursively (sum of the length of all
+	 * files). Modifies Apache commons <a href=
+	 * "http://commons.apache.org/proper/commons-io/javadocs/api-release/org/apache/commons/io/FileUtils.html#sizeOfDirectory%28java.io.File%29"
+	 * >FileUtils#sizeOfDirectory(java.io.File)</a> TODO : <a
+	 * href="http://stackoverflow.com/a/3169970/281545">circular paths</a>
+	 *
+	 * @param directory
+	 *            directory to inspect, must not be <code>null</code>
+	 * @return size of directory in bytes, 0 if directory is security restricted
+	 * @throws NullPointerException
+	 *             if the directory is <code>null</code>
+	 * @throws IllegalArgumentException
+	 *             if the directory does not exist or is not a directory
+	 */
+	public static long sizeOfDirectory(File directory) {
+		if (!directory.exists()) {
+			String message = directory + " does not exist";
+			throw new IllegalArgumentException(message);
+		}
+		if (!directory.isDirectory()) {
+			String message = directory + " is not a directory";
+			throw new IllegalArgumentException(message);
+		}
+		long size = 0;
+		File[] files = directory.listFiles();
+		if (files == null) { // null if security restricted
+			return 0L;
+		}
+		for (int i = 0; i < files.length; i++) {
+			File file = files[i];
+			if (file.isDirectory()) size += sizeOfDirectory(file);
+			else size += file.length();
+		}
+		return size;
+	}
+
+	/**
+	 * Returns true if the directory exists and is not empty *OR* if it does not
+	 * exist. Will also return true if the directory is security restricted.
+	 * Will throw IllegalArgumentException if the directory is not a directory.
+	 *
+	 * @param directory
+	 *            must be a directory
+	 * @return true if the directory does not exist or is empty or not
+	 *         accessible, false otherwise
+	 * @throws IllegalArgumentException
+	 *             if the directory is not a directory
+	 */
+	public static boolean isEmptyOrAbsent(File directory) {
+		if (!directory.exists()) {
+			return true;
+		}
+		return sizeOfDirectory(directory) == 0;
+	}
+
+	public static List<File> listFiles(File directory) {
+		if (!directory.exists()) {
+			String message = directory + " does not exist";
+			throw new IllegalArgumentException(message);
+		}
+		if (!directory.isDirectory()) {
+			String message = directory + " is not a directory";
+			throw new IllegalArgumentException(message);
+		}
+		return Arrays.asList(directory.listFiles()); // FIXME - empty array ?
+	}
+
+	public static boolean delete(final File file) {
+		return file.delete();
 	}
 
 	// =========================================================================
