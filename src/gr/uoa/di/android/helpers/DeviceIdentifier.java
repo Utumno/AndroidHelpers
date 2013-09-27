@@ -17,7 +17,8 @@ public final class DeviceIdentifier {
 	/** @see http://code.google.com/p/android/issues/detail?id=10603 */
 	private static final String ANDROID_ID_BUG_MSG = "The device suffers from "
 		+ "the Android ID bug - its ID is the emulator ID : 9774d56d682e549c";
-	private static volatile String uuid; // TODO volatile needed ?
+	private static volatile String uuid; // volatile needed - see EJ item 71
+	// need lazy initialization to get a context
 
 	/**
 	 * Returns a unique identifier for this device. The first (in the order the
@@ -39,23 +40,25 @@ public final class DeviceIdentifier {
 	 */
 	public static String getDeviceIdentifier(Context ctx,
 			boolean ignoreBuggyAndroidID) throws DeviceIDException {
-		if (uuid == null) {
+		String result = uuid;
+		if (result == null) {
 			synchronized (DeviceIdentifier.class) {
-				if (uuid == null) {
+				result = uuid;
+				if (result == null) {
 					for (IDs id : IDs.values()) {
 						try {
-							uuid = id.getId(ctx);
+							result = uuid = id.getId(ctx);
 						} catch (DeviceIDNotUniqueException e) {
 							if (!ignoreBuggyAndroidID)
 								throw new DeviceIDException(e);
 						}
-						if (uuid != null) return uuid;
+						if (result != null) return result;
 					}
 					throw new DeviceIDException();
 				}
 			}
 		}
-		return uuid;
+		return result;
 	}
 
 	private static enum IDs {
