@@ -11,6 +11,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Wrapper around SharedPreferences. See <a
+ * href="http://stackoverflow.com/questions/19610569/">here</a> for a discussion
+ * of some points. // TODO add public contains(key) + methods using apply() for
+ * API >=9 + clear() + getAll() + remove(String key)
+ */
 public final class AccessPreferences {
 
 	private static final List<Class<?>> CLASSES = new ArrayList<Class<?>>();
@@ -42,8 +48,75 @@ public final class AccessPreferences {
 		return result;
 	}
 
+	/**
+	 * Wrapper around {@link android.content.SharedPreferences.Editor}
+	 * {@code put()} methods. Null keys are not permitted. Attempts to insert a
+	 * null key will throw NullPointerException. When you call this method from
+	 * different threads the order of the operations is unspecified - you have
+	 * to synchronize externally if the order concerns you (especially for the
+	 * same key). If you want to put a long you must explicitly declare it
+	 * otherwise Java will interpret it as an Integer resulting in a
+	 * {@link ClassCastException} when you try to retrieve it (on get()
+	 * invocation). So :
+	 *
+	 * <pre>
+	 * put(ctx, LONG_KEY, 0); // you just persisted an Integer
+	 * get(ctx, LONG_KEY, 0L); // CCE here
+	 * put(ctx, LONG_KEY, 0L); // Correct, always specify you want a Long
+	 * get(ctx, LONG_KEY, 0L); // OK
+	 * </pre>
+	 *
+	 * You will get an {@link IllegalArgumentException} if the value is not an
+	 * instance of String, Boolean, Integer, Long, Float or Set<String> (see
+	 * below). This includes specifying a Double mistakenly thinking you
+	 * specified a Float. So :
+	 *
+	 * <pre>
+	 * put(ctx, FLOAT_KEY, 0.0); // IllegalArgumentException, 0.0 it's a Double
+	 * put(ctx, FLOAT_KEY, 0.0F); // Correct, always specify you want a Float
+	 * </pre>
+	 *
+	 * You will also get an IllegalArgumentException if you are trying to add a
+	 * Set<String> before API 11 (HONEYCOMB). You **can** persist a {@link Set}
+	 * that does not contain Strings using this method, but you are recommended
+	 * not to do so. It is untested and the Android API expects a Set<String>.
+	 * You can actually do so in the framework also but you will have raw and
+	 * unchecked warnings. Here you get no warnings - you've been warned. TODO :
+	 * clarify/test this behavior
+	 *
+	 * Finally, adding null values is supported - but keep in mind that:
+	 * <ol>
+	 * <li>you will get a NullPointerException if you put a null Boolean, Long,
+	 * Float or Integer and you then get() it and assign it to a primitive
+	 * (boolean, long, float or int). This is *not* how the prefs framework
+	 * works - it will immediately throw NullPointerException (which is better).
+	 * TODO : simulate this behavior</li>
+	 *
+	 * <li>you can put a null String or Set - but you will not get() null back
+	 * unless you specify a null default. For non null default you will get this
+	 * default back. This is in tune with the prefs framework</li>
+	 * </ol>
+	 *
+	 * @param ctx
+	 *            the context the Shared preferences belong to
+	 * @param key
+	 *            the preference's key, must not be {@code null}
+	 * @param value
+	 *            an instance of String, Boolean, Integer, Long, Float or
+	 *            Set<String> (for API >= HONEYCOMB)
+	 * @throws IllegalArgumentException
+	 *             if the value is not an instance of String, Boolean, Integer,
+	 *             Long, Float or Set<String> (including the case when you
+	 *             specify a double thinking you specified a float, see above)
+	 *             OR if you try to add a Set<String> _before_ HONEYCOMB API
+	 * @throws NullPointerException
+	 *             if key is {@code null}
+	 */
 	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
-	public static <T> void put(Context ctx, String key, T value) {
+	public static <T> void put(final Context ctx, final String key,
+			final T value) {
+		if (key == null)
+			throw new NullPointerException("Null keys are not permitted");
 		final Editor ed = getPrefs(ctx).edit();
 		if (value == null) {
 			// commit it as that is exactly what the API does (but not for boxed
@@ -70,70 +143,117 @@ public final class AccessPreferences {
 					"You can add sets in the preferences only after API "
 						+ Build.VERSION_CODES.HONEYCOMB);
 			}
-			// The given set does not contain strings only --> TODO : not my
-			// problem ? probably cause the one who filled it made the mistake
-			// Set<?> set = (Set<?>) value;
-			// if (!set.isEmpty()) {
-			// for (Object object : set) {
-			// if (!(object instanceof String))
-			// throw new IllegalArgumentException(
-			// "The given set does not contain strings only");
-			// }
-			// }
 			@SuppressWarnings({ "unchecked", "unused" })
+			// this set can contain whatever it wants - don't be fooled by the
+			// Set<String> cast
 			Editor dummyVariable = ed.putStringSet(key, (Set<String>) value);
 		} else throw new IllegalArgumentException("The given value : " + value
 			+ " cannot be persisted");
 		ed.commit();
 	}
 
+	/**
+	 * Wrapper around {@link android.content.SharedPreferences.Editor}
+	 * {@code get()} methods. Null keys are not permitted. Attempts to insert a
+	 * retrive a preference with a null key will throw NullPointerException. As
+	 * far as the type system is concerned T is of the type the variable that is
+	 * to receive the default value is. You will get a
+	 * {@link ClassCastException} if you put() in a value of type T and try to
+	 * get() a value of different type Y - except if you specify a null default
+	 * *where you will get the CCE only if you try to assign the get() return
+	 * value to a variable of type Y, _in the assignment_ after get() returns*.
+	 * So don't do this :
+	 *
+	 * <pre>
+	 * AccessPreferences.put(ctx, BOOLEAN_KEY, DEFAULT_BOOLEAN);
+	 * AccessPreferences.get(ctx, BOOLEAN_KEY, DEFAULT_STRING); // CCE !
+	 * AccessPreferences.get(ctx, BOOLEAN_KEY, null); // NO CCE !!! (***)
+	 * String dummy = AccessPreferences.get(ctx, BOOLEAN_KEY, null); // CCE
+	 * </pre>
+	 *
+	 * This is unlike the Preferences framework where you will get a
+	 * ClassCastException even if you specify a default null value:
+	 *
+	 * <pre>
+	 * ed.putBoolean(BOOLEAN_KEY, DEFAULT_BOOLEAN);
+	 * ed.commit();
+	 * prefs.getString(BOOLEAN_KEY, null); // CCE - unlike AccessPreferences!
+	 * prefs.getString(BOOLEAN_KEY, &quot;a string&quot;); // CCE
+	 * </pre>
+	 *
+	 * TODO : correct this (***)
+	 *
+	 * If you put a Set<?> you will get it out as a set of strings - I am not
+	 * entirely clear on this
+	 *
+	 * @param ctx
+	 *            the context the Shared preferences belong to
+	 * @param key
+	 *            the preference's key, must not be {@code null}
+	 * @param defaultValue
+	 * @return
+	 * @throws ClassCastException
+	 *             If you try to get a different type than the one you put in -
+	 *             except if you specify a null default (***). For other CCEs
+	 *             see the {@link #put(Context, String, Object)} docs
+	 * @throws IllegalArgumentException
+	 *             if a given default value's type is not among the accepted
+	 *             classes for preferences or if a Set is given as default or
+	 *             asked for before HONEYCOMB API
+	 * @throws IllegalStateException
+	 *             if I can't figure out the class of a value retrieved from
+	 *             preferences (when default is null)
+	 * @throws NullPointerException
+	 *             if key is {@code null}
+	 */
 	@SuppressWarnings("unchecked")
 	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
-	public static <T> T get(Context ctx, String key, T defaultValue) {
+	public static <T> T get(final Context ctx, final String key,
+			final T defaultValue) {
+		if (key == null)
+			throw new NullPointerException("Null keys are not permitted");
 		// if the value provided as defaultValue is null I can't get its class
 		if (defaultValue == null) {
-			// if the key (which can very well be null btw) !exist I return null
-			// which is both the default value provided and what Android would
-			// do (as in return the default value) (TODO: test)
+			// if the key !exist I return null which is both the default value
+			// provided and what Android would do (as in return the default
+			// value - except if boxed primitive..)
 			if (!getPrefs(ctx).contains(key)) return null;
 			// if the key does exist I get the value and..
 			final Object value = getPrefs(ctx).getAll().get(key);
-			// ..if null I return null
+			// ..if null I return null - here I differ from framework - I return
+			// null for boxed primitives
 			if (value == null) return null;
-			// ..if not null I get the class of the non null value. Problem is
-			// that as far as the type system is concerned T is of the type the
-			// variable that is to receive the default value is. So :
-			// String s = AccessPreferences.retrieve(this, "key", null);
-			// if the value stored in "key" is not a String for instance
-			// `"key" --> true` or `"key" --> 1.2` a ClassCastException will
-			// occur _in the assignment_ after retrieve returns
-			// TODO : is it my problem ? This :
-			// SharedPreferences p =
-			// PreferenceManager.getDefaultSharedPreferences(ctx);
-			// int i = p.getInt(KEY_FOR_STRING, 7);
-			// results in a class cast exception as well !
-			// TODO : IS THE ORDER OF FLOAT, INTEGER AND LONG CORRECT in CLASSES
+			// ..if not null I get the class of the non null value. Here I
+			// differ from framework - I do not throw if the (non null) value is
+			// not of the type the variable to receive it is - cause I have no
+			// way to guess the return value expected ! (***)
 			final Class<?> valueClass = value.getClass();
+			// the order of "instanceof" checks does not matter - still if I
+			// have a long autoboxed as Integer ? - tested in
+			// testAPNullDefaultUnboxingLong() and works OK (long 0L is
+			// autoboxed as long)
 			for (Class<?> cls : CLASSES) {
 				if (valueClass.isAssignableFrom(cls)) {
-					try {
-						// I can't directly cast to T as value may be boolean
-						// for instance
-						return (T) valueClass.cast(value);
-					} catch (ClassCastException e) { // won't work see :
-						// http://stackoverflow.com/questions/186917/how-do-i-catch-classcastexception
-						// basically the (T) clazz.cast(value); line is
-						// translated to (Object) clazz.cast(value); which won't
-						// fail ever - the CCE is thrown in the assignment (T t
-						// =) String s = AccessPreferences.retrieve(this, "key",
-						// null); which is compiled as
-						// (String)AccessPreferences.retrieve(this, "key",
-						// null); and retrieve returns an Integer for instance
-						String msg = "Value : " + value + " stored for key : "
-							+ key
-							+ " is not assignable to variable of given type.";
-						throw new IllegalStateException(msg, e);
-					}
+					// try {
+					// I can't directly cast to T as value may be boolean
+					// for instance
+					return (T) valueClass.cast(value);
+					// } catch (ClassCastException e) { // won't work see :
+					// //
+					// http://stackoverflow.com/questions/186917/
+					// (how-do-i-catch-classcastexception)
+					// // basically the (T) valueClass.cast(value); line is
+					// // translated to (Object) valueClass.cast(value); which
+					// // won't fail ever - the CCE is thrown in the assignment
+					// // (T t =) String s = AccessPreferences.get(this, "key",
+					// // null); which is compiled as
+					// // (String) AccessPreferences.get(this, "key",
+					// // null); and get returns an Integer for instance
+					// String msg = "Value : " + value + " stored for key : "
+					// + key
+					// + " is not assignable to variable of given type.";
+					// throw new IllegalStateException(msg, e);
+					// }
 				}
 			}
 			// that's really Illegal State I guess
@@ -156,19 +276,31 @@ public final class AccessPreferences {
 					"You can add sets in the preferences only after API "
 						+ Build.VERSION_CODES.HONEYCOMB);
 			}
-			// The given set does not contain strings only --> TODO : not my
-			// problem ? probably cause the one who filled it made the mistake
-			// Set<?> set = (Set<?>) defaultValue;
-			// if (!set.isEmpty()) {
-			// for (Object object : set) {
-			// if (!(object instanceof String))
-			// throw new IllegalArgumentException(
-			// "The given set does not contain strings only");
-			// }
-			// }
+			// this set can contain whatever it wants - don't be fooled by the
+			// Set<String> cast
 			return (T) getPrefs(ctx).getStringSet(key,
 				(Set<String>) defaultValue);
 		} else throw new IllegalArgumentException(defaultValue
 			+ " cannot be persisted in SharedPreferences");
+	}
+
+	/**
+	 * Check that the given set contains strings only.
+	 *
+	 * @param set
+	 * @return the set cast to Set<String>
+	 */
+	@SuppressWarnings("unused")
+	private static Set<String> checkSetContainsStrings(Set<?> set) {
+		if (!set.isEmpty()) {
+			for (Object object : set) {
+				if (!(object instanceof String))
+					throw new IllegalArgumentException(
+						"The given set does not contain strings only");
+			}
+		}
+		@SuppressWarnings("unchecked")
+		final Set<String> stringSet = (Set<String>) set;
+		return stringSet;
 	}
 }
