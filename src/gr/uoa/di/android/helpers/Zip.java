@@ -1,11 +1,11 @@
 package gr.uoa.di.android.helpers;
 
-import java.io.File;
-
 import net.lingala.zip4j.core.ZipFile;
 import net.lingala.zip4j.exception.ZipException;
 import net.lingala.zip4j.model.ZipParameters;
 import net.lingala.zip4j.util.Zip4jConstants;
+
+import java.io.File;
 
 public final class Zip {
 

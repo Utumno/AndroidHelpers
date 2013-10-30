@@ -1,19 +1,5 @@
 package gr.uoa.di.android.helpers;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
-import java.net.SocketException;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-
-import org.apache.http.conn.util.InetAddressUtils;
-
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.net.ConnectivityManager;
@@ -21,6 +7,30 @@ import android.net.NetworkInfo;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
+import android.util.Log;
+
+import gr.uoa.di.java.helpers.Utils;
+
+import org.apache.http.conn.util.InetAddressUtils;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.net.SocketException;
+import java.net.URLConnection;
+import java.util.Collections;
+import java.util.List;
+import java.util.zip.GZIPOutputStream;
 
 /**
  * Needed manifest permissions :
@@ -37,6 +47,11 @@ import android.os.Build;
  *      ip-address of the device</a >
  */
 public final class Net {
+
+	private static final String TAG = Net.class.getName();
+	// multipart values
+	private static final CharSequence CRLF = "\r\n";
+	private static final String charsetForMultipartHeaders = Utils.UTF8;
 
 	private Net() {}
 
@@ -57,7 +72,7 @@ public final class Net {
 				+ "after API " + Build.VERSION_CODES.GINGERBREAD);
 		}
 		List<NetworkInterface> interfaces = Collections.list(NetworkInterface
-				.getNetworkInterfaces());
+			.getNetworkInterfaces());
 		for (NetworkInterface intf : interfaces) {
 			if (interfaceName != null) {
 				if (!intf.getName().equalsIgnoreCase(interfaceName)) continue;
@@ -89,7 +104,7 @@ public final class Net {
 	 */
 	public static String getIPAddress(boolean useIPv4) throws SocketException {
 		List<NetworkInterface> interfaces = Collections.list(NetworkInterface
-				.getNetworkInterfaces());
+			.getNetworkInterfaces());
 		for (NetworkInterface intf : interfaces) {
 			List<InetAddress> addrs = Collections.list(intf.getInetAddresses());
 			for (InetAddress addr : addrs) {
@@ -103,7 +118,7 @@ public final class Net {
 							// drop ip6 port suffix
 							int delim = sAddr.indexOf('%');
 							return delim < 0 ? sAddr : sAddr
-									.substring(0, delim);
+								.substring(0, delim);
 						}
 					}
 				}
@@ -114,7 +129,7 @@ public final class Net {
 
 	public static boolean hasWifiConnection(Context ctx) {
 		ConnectivityManager connec = (ConnectivityManager) ctx
-				.getSystemService(Context.CONNECTIVITY_SERVICE);
+			.getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo wifi = connec.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
 		return wifi.isAvailable() && wifi.isConnected();
 	}
@@ -123,7 +138,7 @@ public final class Net {
 		String ssid = null;
 		if (hasWifiConnection(ctx)) {
 			WifiManager wm = (WifiManager) ctx
-					.getSystemService(Context.WIFI_SERVICE);
+				.getSystemService(Context.WIFI_SERVICE);
 			final WifiInfo connectionInfo = wm.getConnectionInfo();
 			if (connectionInfo != null) {
 				ssid = connectionInfo.getSSID();
@@ -134,73 +149,119 @@ public final class Net {
 	}
 
 	// =========================================================================
+	// Multipart
+	// =========================================================================
+	public static void flushMultiPartData(File file,
+			OutputStream serverOutputStream, String boundary, boolean isGunzip)
+			throws FileNotFoundException, IOException {
+		// connection.setRequestProperty("accept", "text/html,application/xhtml"
+		// + "+xml,application/xml;q=0.9,*/*;q=0.8");
+		// TODO : chunks
+		PrintWriter writer = null;
+		try {
+			// http://stackoverflow.com/a/2793153/281545
+			// true = autoFlush, important!
+			writer = new PrintWriter(new OutputStreamWriter(serverOutputStream,
+				charsetForMultipartHeaders), true);
+			appendBinary(file, boundary, writer, serverOutputStream, isGunzip);
+			// End of multipart/form-data.
+			writer.append("--" + boundary + "--").append(CRLF);
+		} finally {
+			if (writer != null) writer.close();
+		}
+	}
+
+	public static void appendBinary(File file, String boundary,
+			PrintWriter writer, OutputStream output, boolean isGzip)
+			throws FileNotFoundException, IOException {
+		// Send binary file.
+		writer.append("--" + boundary).append(CRLF);
+		writer.append(
+			"Content-Disposition: form-data; name=\"binaryFile\"; filename=\""
+				+ file.getName() + "\"").append(CRLF);
+		writer.append(
+			"Content-Type: "
+				+ ((isGzip) ? "application/gzip" : URLConnection
+					.guessContentTypeFromName(file.getName()))).append(CRLF);
+		writer.append("Content-Transfer-Encoding: binary").append(CRLF);
+		writer.append(CRLF).flush();
+		InputStream input = null;
+		OutputStream output2 = output;
+		if (isGzip) {
+			output2 = new GZIPOutputStream(output);
+		}
+		try {
+			input = new FileInputStream(file);
+			byte[] buffer = new byte[1024];
+			for (int length = 0; (length = input.read(buffer)) > 0;) {
+				output2.write(buffer, 0, length);
+			}
+			if (isGzip) {
+				// Write the compressed parts,
+				// http://stackoverflow.com/a/18858420/281545
+				((GZIPOutputStream) output2).finish();
+			}
+			output2.flush(); // Important! Output cannot be closed. Close of
+			// writer will close output as well.
+		} finally {
+			if (input != null) try {
+				input.close();
+			} catch (IOException logOrIgnore) {
+				w(logOrIgnore.getMessage());
+			}
+		}
+		writer.append(CRLF).flush(); // CRLF is important! It indicates end of
+		// binary boundary.
+	}
+
+	@SuppressWarnings("unused")
+	private static void appendTextFile(String boundary, PrintWriter writer,
+			File textFile) throws UnsupportedEncodingException,
+			FileNotFoundException, IOException {
+		// Send text file.
+		writer.append("--" + boundary).append(CRLF);
+		writer.append(
+			"Content-Disposition: form-data; name=\"textFile\"; filename=\""
+				+ textFile.getName() + "\"").append(CRLF);
+		writer.append(
+			"Content-Type: text/plain; charset=" + charsetForMultipartHeaders)
+			.append(CRLF);
+		writer.append(CRLF).flush();
+		BufferedReader reader = null;
+		try {
+			reader = new BufferedReader(new InputStreamReader(
+				new FileInputStream(textFile), charsetForMultipartHeaders));
+			for (String line; (line = reader.readLine()) != null;) {
+				writer.append(line).append(CRLF);
+			}
+		} finally {
+			if (reader != null) try {
+				reader.close();
+			} catch (IOException logOrIgnore) {
+				w(logOrIgnore.getMessage());
+			}
+		}
+		writer.flush();
+	}
+
+	@SuppressWarnings("unused")
+	private static void appendParameter(String boundary, PrintWriter writer,
+			CharSequence param) {
+		// Send normal param.
+		writer.append("--" + boundary).append(CRLF);
+		writer.append("Content-Disposition: form-data; name=\"param\"").append(
+			CRLF);
+		writer.append(
+			"Content-Type: text/plain; charset=" + charsetForMultipartHeaders)
+			.append(CRLF);
+		writer.append(CRLF);
+		writer.append(param).append(CRLF).flush();
+	}
+
+	// =========================================================================
 	// helpers
 	// =========================================================================
-	/**
-	 * Load UTF8withBOM or any ansi text file. It drops the BOM from UTF8 files
-	 * if present
-	 *
-	 * @param filename
-	 * @return
-	 * @throws IOException
-	 */
-	@SuppressWarnings("unused")
-	private static String loadFileAsString(String filename, String charsetName)
-			throws IOException {
-		final int BUFLEN = 1024;
-		BufferedInputStream is = new BufferedInputStream(new FileInputStream(
-				filename), BUFLEN);
-		try {
-			ByteArrayOutputStream baos = new ByteArrayOutputStream(BUFLEN);
-			byte[] bytes = new byte[BUFLEN];
-			boolean isUTF8 = false;
-			for (int read, count = 0; (read = is.read(bytes)) != -1;) {
-				if (count == 0 && bytes[0] == (byte) 0xEF
-					&& bytes[1] == (byte) 0xBB && bytes[2] == (byte) 0xBF) {
-					isUTF8 = true;
-					baos.write(bytes, 3, read - 3); // drop UTF8 bom marker
-				} else {
-					baos.write(bytes, 0, read);
-				}
-				count += read;
-			}
-			return isUTF8 ? new String(baos.toByteArray(), "UTF-8")
-					: new String(baos.toByteArray(), charsetName);
-		} finally {
-			try {
-				is.close();
-			} catch (IOException ex) {}
-		}
-	}
-
-	/**
-	 * Convert byte array to hex string
-	 *
-	 * @param bytes
-	 * @return
-	 */
-	private static String bytesToHex(byte[] bytes) {
-		StringBuilder sbuf = new StringBuilder();
-		for (int idx = 0; idx < bytes.length; idx++) {
-			int intVal = bytes[idx] & 0xff;
-			if (intVal < 0x10) sbuf.append("0");
-			sbuf.append(Integer.toHexString(intVal).toUpperCase(Locale.US));
-		}
-		return sbuf.toString();
-	}
-
-	/**
-	 * Get utf8 byte array.
-	 *
-	 * @param str
-	 *            should be "UTF-8" encoded
-	 * @return array or null if UnsupportedEncodingException was thrown
-	 */
-	private static byte[] getUTF8Bytes(String str) {
-		try {
-			return str.getBytes("UTF-8");
-		} catch (UnsupportedEncodingException ex) {
-			return null;
-		}
+	private static void w(String message) {
+		Log.w(TAG, message);
 	}
 }

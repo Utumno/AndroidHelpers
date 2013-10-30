@@ -1,5 +1,9 @@
 package gr.uoa.di.android.helpers;
 
+import android.content.Context;
+import android.os.Environment;
+import android.util.Log;
+
 import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
@@ -17,10 +21,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.List;
-
-import android.content.Context;
-import android.os.Environment;
-import android.util.Log;
 
 /**
  * WIP ! I use the Execute around idiom -
@@ -173,7 +173,7 @@ public final class FileIO {
 			@Override
 			public void useStream(final OutputStream stream) throws IOException {
 				BufferedOutputStream buffer = new BufferedOutputStream(stream,
-						OUTPUT_BUFFER_SIZE);
+					OUTPUT_BUFFER_SIZE);
 				// FIXME writes them all ?
 				buffer.write(bytes);
 				w(file.getAbsolutePath());
@@ -233,9 +233,9 @@ public final class FileIO {
 			@Override
 			public void useStream(final OutputStream stream) throws IOException {
 				OutputStreamWriter wrt = new OutputStreamWriter(stream,
-						charsetName);
+					charsetName);
 				BufferedWriter buffer = new BufferedWriter(wrt,
-						OUTPUT_BUFFER_SIZE);
+					OUTPUT_BUFFER_SIZE);
 				buffer.write(data);
 				buffer.flush();
 			}
@@ -336,7 +336,7 @@ public final class FileIO {
 		// create a File object for the parent directory
 		if (isExternalStoragePresent()) {
 			File logdir = new File(ctx.getExternalFilesDir(null)
-					.getAbsolutePath() + File.separator + rootDir);
+				.getAbsolutePath() + File.separator + rootDir);
 			// have the object build the directory structure, if needed.
 			if (FileIO.createDirExternal(logdir)) {
 				// Log.w(TAG, "logdir : " + logdir.getAbsolutePath());
@@ -390,12 +390,12 @@ public final class FileIO {
 			File logdir;
 			if (dirInPublicStorage != null) {
 				logdir = new File(Environment
-						.getExternalStoragePublicDirectory(dirInPublicStorage)
-						.getAbsolutePath()
+					.getExternalStoragePublicDirectory(dirInPublicStorage)
+					.getAbsolutePath()
 					+ File.separator + rootDir);
 			} else {
 				logdir = new File(Environment.getExternalStorageDirectory()
-						.getAbsolutePath() + File.separator + rootDir);
+					.getAbsolutePath() + File.separator + rootDir);
 			}
 			// have the object build the directory structure, if needed.
 			if (FileIO.createDirExternal(logdir)) {
@@ -515,7 +515,7 @@ public final class FileIO {
 			String message = directory + " is not a directory";
 			throw new IllegalArgumentException(message);
 		}
-		return Arrays.asList(directory.listFiles()); // FIXME - empty array ?
+		return Arrays.asList(directory.listFiles());// empty array => empty List
 	}
 
 	public static boolean delete(final File file) {

@@ -3,7 +3,6 @@ package gr.uoa.di.android.helpers;
 import android.Manifest.permission;
 import android.bluetooth.BluetoothAdapter;
 import android.content.Context;
-import android.content.pm.PackageManager;
 import android.net.wifi.WifiManager;
 import android.provider.Settings.Secure;
 import android.telephony.TelephonyManager;
@@ -16,7 +15,8 @@ public final class DeviceIdentifier {
 
 	/** @see http://code.google.com/p/android/issues/detail?id=10603 */
 	private static final String ANDROID_ID_BUG_MSG = "The device suffers from "
-		+ "the Android ID bug - its ID is the emulator ID : 9774d56d682e549c";
+		+ "the Android ID bug - its ID is the emulator ID : "
+		+ IDs.BUGGY_ANDROID_ID;
 	private static volatile String uuid; // volatile needed - see EJ item 71
 	// need lazy initialization to get a context
 
@@ -61,19 +61,19 @@ public final class DeviceIdentifier {
 		return result;
 	}
 
-	private static enum IDs {
+	private enum IDs { // implicitly static
 		TELEPHONY_ID {
 
 			@Override
 			String getId(Context ctx) {
 				// TODO : add a SIM based mechanism ? tm.getSimSerialNumber();
-				assertPermission(ctx, permission.READ_PHONE_STATE);
 				final TelephonyManager tm = (TelephonyManager) ctx
-						.getSystemService(Context.TELEPHONY_SERVICE);
+					.getSystemService(Context.TELEPHONY_SERVICE);
 				if (tm == null) {
 					w("Telephony Manager not available");
 					return null;
 				}
+				Utils.assertPermission(ctx, permission.READ_PHONE_STATE);
 				return tm.getDeviceId();
 			}
 		},
@@ -81,10 +81,11 @@ public final class DeviceIdentifier {
 
 			@Override
 			String getId(Context ctx) throws DeviceIDException {
+				// no permission needed !
 				final String andoidId = Secure.getString(
 					ctx.getContentResolver(),
 					android.provider.Settings.Secure.ANDROID_ID);
-				if ("9774d56d682e549c".equals(andoidId)) {
+				if (BUGGY_ANDROID_ID.equals(andoidId)) {
 					e(ANDROID_ID_BUG_MSG);
 					throw new DeviceIDNotUniqueException();
 				}
@@ -96,13 +97,13 @@ public final class DeviceIdentifier {
 			@Override
 			String getId(Context ctx) {
 				WifiManager wm = (WifiManager) ctx
-						.getSystemService(Context.WIFI_SERVICE);
+					.getSystemService(Context.WIFI_SERVICE);
 				if (wm == null) {
 					w("Wifi Manager not available");
 					return null;
 				}
-				assertPermission(ctx, permission.ACCESS_WIFI_STATE); // I guess
-				// getMacAddress() has no java doc !!!
+				Utils.assertPermission(ctx, permission.ACCESS_WIFI_STATE); // I
+				// guess getMacAddress() has no java doc !!!
 				return wm.getConnectionInfo().getMacAddress();
 			}
 		},
@@ -115,7 +116,7 @@ public final class DeviceIdentifier {
 					w("Bluetooth Adapter not available");
 					return null;
 				}
-				assertPermission(ctx, permission.BLUETOOTH);
+				Utils.assertPermission(ctx, permission.BLUETOOTH);
 				return ba.getAddress();
 			}
 		}
@@ -123,6 +124,7 @@ public final class DeviceIdentifier {
 		// http://www.pocketmagic.net/2011/02/android-unique-device-id/
 		;
 
+		static final String BUGGY_ANDROID_ID = "9774d56d682e549c";
 		private final static String TAG = IDs.class.getSimpleName();
 
 		abstract String getId(Context ctx) throws DeviceIDException;
@@ -133,14 +135,6 @@ public final class DeviceIdentifier {
 
 		private static void e(String msg) {
 			Log.e(TAG, msg);
-		}
-	}
-
-	private static void assertPermission(Context ctx, String perm) {
-		final int checkPermission = ctx.getPackageManager().checkPermission(
-			perm, ctx.getPackageName());
-		if (checkPermission != PackageManager.PERMISSION_GRANTED) {
-			throw new SecurityException("Permission " + perm + " is required");
 		}
 	}
 
