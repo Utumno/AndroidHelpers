@@ -127,16 +127,32 @@ public final class Net {
 		return "";
 	}
 
-	public static boolean hasWifiConnection(Context ctx) {
+	public static boolean isWifiConnected(Context ctx) {
 		ConnectivityManager connec = (ConnectivityManager) ctx
 			.getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo wifi = connec.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
 		return wifi.isAvailable() && wifi.isConnected();
 	}
 
+	public static boolean isWifiConnectedOrConnecting(Context ctx) {
+		ConnectivityManager connec = (ConnectivityManager) ctx
+			.getSystemService(Context.CONNECTIVITY_SERVICE);
+		NetworkInfo wifi = connec.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+		return wifi.isAvailable() && wifi.isConnectedOrConnecting();
+	}
+
+	/**
+	 * Returns the SSID of the network connected to or null if not connected to
+	 * a wifi network. If the SSID is empty or consists of whitespace only also
+	 * null is returned - possible ?
+	 *
+	 * @param ctx
+	 *            a Context needed to access the System services
+	 * @return the SSID of the network connected to or null
+	 */
 	public static String getCurrentSsid(Context ctx) {
 		String ssid = null;
-		if (hasWifiConnection(ctx)) {
+		if (isWifiConnected(ctx)) {
 			WifiManager wm = (WifiManager) ctx
 				.getSystemService(Context.WIFI_SERVICE);
 			final WifiInfo connectionInfo = wm.getConnectionInfo();

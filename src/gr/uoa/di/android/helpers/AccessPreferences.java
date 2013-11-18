@@ -112,8 +112,23 @@ public final class AccessPreferences {
 	 * @throws NullPointerException
 	 *             if key is {@code null}
 	 */
-	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
+	@TargetApi(Build.VERSION_CODES.GINGERBREAD)
 	public static <T> void put(final Context ctx, final String key,
+			final T value) {
+		final Editor ed = _put(ctx, key, value);
+		if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD)
+			ed.apply();
+		else ed.commit();
+	}
+
+	public static <T> boolean commit(final Context ctx, final String key,
+			final T value) {
+		final Editor ed = _put(ctx, key, value);
+		return ed.commit();
+	}
+
+	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
+	private static <T> Editor _put(final Context ctx, final String key,
 			final T value) {
 		if (key == null)
 			throw new NullPointerException("Null keys are not permitted");
@@ -149,7 +164,7 @@ public final class AccessPreferences {
 			Editor dummyVariable = ed.putStringSet(key, (Set<String>) value);
 		} else throw new IllegalArgumentException("The given value : " + value
 			+ " cannot be persisted");
-		ed.commit();
+		return ed;
 	}
 
 	/**
