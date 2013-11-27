@@ -277,20 +277,6 @@ public final class FileIO {
 	}
 
 	/**
-	 * Given a File which corresponds to a _directory_ path creates this path if
-	 * it does not exists. The directory path must lie in EXTERNAL storage
-	 *
-	 * @param directory
-	 *            the File instance whose path must be created
-	 * @return true if the path was created successfully or the path already
-	 *         existed and is a directory, false otherwise
-	 */
-	public static boolean createDirExternal(final File directory) {
-		// TODO : more efficient way
-		return directory.mkdirs() || directory.isDirectory();
-	}
-
-	/**
 	 * Given a string which corresponds to a directory path relative to the root
 	 * of *internal* storage creates this directory path if it does not exists.
 	 * Returns this path or throws IOException on failure
@@ -520,6 +506,19 @@ public final class FileIO {
 
 	public static boolean delete(final File file) {
 		return file.delete();
+	}
+
+	/**
+	 * Given a File which corresponds to a _directory_ path creates this path if
+	 * it does not exists. The directory path must lie in EXTERNAL storage
+	 *
+	 * @param directory
+	 *            the File instance whose path must be created
+	 * @return true if the path already exists and is a directory or was created
+	 *         successfully as a directory, false otherwise
+	 */
+	public static boolean createDirExternal(final File directory) {
+		return directory.isDirectory() || directory.mkdirs();
 	}
 
 	// =========================================================================
