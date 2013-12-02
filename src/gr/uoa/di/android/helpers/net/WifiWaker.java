@@ -1,4 +1,4 @@
-package gr.uoa.di.android.helpers;
+package gr.uoa.di.android.helpers.net;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

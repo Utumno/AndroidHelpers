@@ -1,8 +1,11 @@
-package gr.uoa.di.android.helpers;
+package gr.uoa.di.android.helpers.net;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.util.Log;
 
 import gr.uoa.di.java.helpers.Utils;
@@ -56,6 +59,14 @@ public final class Net {
 			.getSystemService(Context.CONNECTIVITY_SERVICE);
 		NetworkInfo wifi = connec.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
 		return wifi.isAvailable() && wifi.isConnectedOrConnecting();
+	}
+
+	@TargetApi(Build.VERSION_CODES.HONEYCOMB_MR1)
+	public static int modeHighPerformanse() {
+		if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB_MR1) {
+			return WifiManager.WIFI_MODE_FULL_HIGH_PERF;
+		}
+		return 0x3;
 	}
 
 	// =========================================================================

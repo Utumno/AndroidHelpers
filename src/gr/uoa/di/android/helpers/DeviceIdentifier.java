@@ -129,11 +129,11 @@ public final class DeviceIdentifier {
 
 		abstract String getId(Context ctx) throws DeviceIDException;
 
-		private static void w(String msg) {
+		static void w(String msg) {
 			Log.w(TAG, msg);
 		}
 
-		private static void e(String msg) {
+		static void e(String msg) {
 			Log.e(TAG, msg);
 		}
 	}

@@ -1,4 +1,4 @@
-package gr.uoa.di.android.helpers;
+package gr.uoa.di.android.helpers.net;
 
 import android.annotation.TargetApi;
 import android.content.Context;
