@@ -58,7 +58,7 @@ public final class ExternalStorage {
 					.getAbsolutePath() + File.separator + rootDir);
 			}
 			// have the object build the directory structure, if needed.
-			if (FileIO.createDir(logdir)) {
+			if (FileUtils.createDir(logdir)) {
 				// create a File *instance* for the output file - can't fail
 				return new File(logdir, filename);
 			}
@@ -123,7 +123,7 @@ public final class ExternalStorage {
 			File logdir = new File(ctx.getExternalFilesDir(null)
 				.getAbsolutePath() + File.separator + rootDir);
 			// have the object build the directory structure, if needed.
-			if (FileIO.createDirExternal(logdir)) {
+			if (FileUtils.createDirExternal(logdir)) {
 				// Log.w(TAG, "logdir : " + logdir.getAbsolutePath());
 				// create a *File object* for the output file - can't fail
 				return new File(logdir, filename);
@@ -166,10 +166,10 @@ public final class ExternalStorage {
 					output.write(buffer, 0, length);
 				}
 			} finally {
-				FileIO.close(output);
+				FileUtils.close(output);
 			}
 		} finally {
-			FileIO.close(fis);
+			FileUtils.close(fis);
 		}
 	}*/
 }

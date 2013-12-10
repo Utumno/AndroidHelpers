@@ -10,11 +10,11 @@ import java.util.Arrays;
 import java.util.List;
 
 /** Common File IO Utils */
-public final class FileIO {
+public final class FileUtils {
 
-	private FileIO() {}
+	private FileUtils() {}
 
-	private static final String TAG = FileIO.class.getSimpleName();
+	private static final String TAG = FileUtils.class.getSimpleName();
 	private static final boolean WARN = false;
 
 	// =========================================================================
@@ -31,6 +31,7 @@ public final class FileIO {
 	 * @return the File that corresponds to the path if it was created
 	 *         successfully or the path already existed and is a directory
 	 * @throws IOException
+	 *             if the directory can't be created
 	 */
 	public static File createDirInternal(final Context ctx,
 			final String directoryName) throws IOException {
@@ -41,7 +42,7 @@ public final class FileIO {
 	}
 
 	// =========================================================================
-	// IO Utils
+	// IO FileUtils
 	// =========================================================================
 	/**
 	 * Returns true if the directory exists and is empty *OR* if it does not
@@ -132,19 +133,18 @@ public final class FileIO {
 	 *             if the directory does not exist or is not a directory
 	 */
 	private static long sizeOfDirectory(File directory) {
-		if (!directory.exists()) {
-			String message = directory + " does not exist";
-			throw new IllegalArgumentException(message);
-		}
-		if (!directory.isDirectory()) {
-			String message = directory + " is not a directory";
-			throw new IllegalArgumentException(message);
-		}
-		long size = 0;
-		File[] files = directory.listFiles();
-		if (files == null) { // null if security restricted
+		final File[] files = directory.listFiles();
+		if (files == null) { // null maybe if security restricted
+			String message = null;
+			if (!directory.exists()) {
+				message = directory + " does not exist";
+			} else if (!directory.isDirectory()) {
+				message = directory + " is not a directory";
+			}
+			if (message != null) throw new IllegalArgumentException(message);
 			return 0L;
 		}
+		long size = 0;
 		for (int i = 0; i < files.length; ++i) {
 			File file = files[i];
 			if (file.isDirectory()) size += sizeOfDirectory(file);

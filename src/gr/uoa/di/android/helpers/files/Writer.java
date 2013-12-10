@@ -120,7 +120,7 @@ public final class Writer {
 	/*public static void append(final Context context, final String filename,
 			final String dirname, final byte[] bytes)
 			throws FileNotFoundException, IOException {
-		final File dir = FileIO.createDirInternal(context, dirname); // throws
+		final File dir = FileUtils.createDirInternal(context, dirname); // throws
 		final File file = new File(dir.getAbsolutePath(), filename);
 		append(file, bytes);
 	}*/
@@ -203,7 +203,7 @@ public final class Writer {
 		try {
 			action.useStream(stream);
 		} finally {
-			FileIO.close(stream);
+			FileUtils.close(stream);
 		}
 	}
 
@@ -278,7 +278,7 @@ public final class Writer {
 		try {
 			action.useStream(stream);
 		} finally {
-			FileIO.close(stream);
+			FileUtils.close(stream);
 		}
 	}
 }
