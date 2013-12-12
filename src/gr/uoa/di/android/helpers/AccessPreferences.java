@@ -1,5 +1,6 @@
 package gr.uoa.di.android.helpers;
 
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -8,14 +9,15 @@ import android.os.Build;
 import android.preference.PreferenceManager;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * Wrapper around SharedPreferences. See <a
  * href="http://stackoverflow.com/questions/19610569/">here</a> for a discussion
- * of some points. // TODO add public contains(key) + methods using apply() for
- * API >=9 + clear() + getAll() + remove(String key)
+ * of some points.
  */
 public final class AccessPreferences {
 
@@ -31,7 +33,7 @@ public final class AccessPreferences {
 
 	private AccessPreferences() {}
 
-	private static SharedPreferences prefs;
+	private static SharedPreferences prefs; // cache
 
 	private static SharedPreferences getPrefs(Context ctx) {
 		// synchronized is not really needed as the same instance of
@@ -51,7 +53,10 @@ public final class AccessPreferences {
 	/**
 	 * Wrapper around {@link android.content.SharedPreferences.Editor}
 	 * {@code put()} methods. Null keys are not permitted. Attempts to insert a
-	 * null key will throw NullPointerException. When you call this method from
+	 * null key will throw NullPointerException. Will call
+	 * {@link android.content.SharedPreferences.Editor#apply()} in Gingerbread
+	 * and above instead of commit. If you want to check the return value call
+	 * {@link #commit(Context, String, Object)}. When you call this method from
 	 * different threads the order of the operations is unspecified - you have
 	 * to synchronize externally if the order concerns you (especially for the
 	 * same key). If you want to put a long you must explicitly declare it
@@ -121,12 +126,34 @@ public final class AccessPreferences {
 		else ed.commit();
 	}
 
+	/**
+	 * As {@link #put(Context, String, Object)} but will call
+	 * {@link android.content.SharedPreferences.Editor#commit()} in all API
+	 * versions. See {@link #put(Context, String, Object)} for detailed usage
+	 * notes.
+	 *
+	 * @param ctx
+	 *            the context the Shared preferences belong to
+	 * @param key
+	 *            the preference's key, must not be {@code null}
+	 * @param value
+	 *            an instance of String, Boolean, Integer, Long, Float or
+	 *            Set<String> (for API >= HONEYCOMB)
+	 * @return true if the commit succeeded, false if not
+	 * @throws IllegalArgumentException
+	 *             if the value is not an instance of String, Boolean, Integer,
+	 *             Long, Float or Set<String> (including the case when you
+	 *             specify a double thinking you specified a float, see put())
+	 *             OR if you try to add a Set<String> _before_ HONEYCOMB API
+	 * @throws NullPointerException
+	 *             if key is {@code null}
+	 */
 	public static <T> boolean commit(final Context ctx, final String key,
 			final T value) {
-		final Editor ed = _put(ctx, key, value);
-		return ed.commit();
+		return _put(ctx, key, value).commit();
 	}
 
+	@SuppressLint("CommitPrefEdits")
 	@TargetApi(Build.VERSION_CODES.HONEYCOMB)
 	private static <T> Editor _put(final Context ctx, final String key,
 			final T value) {
@@ -297,6 +324,73 @@ public final class AccessPreferences {
 				(Set<String>) defaultValue);
 		} else throw new IllegalArgumentException(defaultValue
 			+ " cannot be persisted in SharedPreferences");
+	}
+
+	/**
+	 * Wraps {@link android.content.SharedPreferences#contains(String)}.
+	 *
+	 * @param ctx
+	 *            the context the SharedPreferences belong to
+	 * @param key
+	 *            the preference's key, must not be {@code null}
+	 * @return true if the preferences contain the given key, false otherwise
+	 * @throws NullPointerException
+	 *             if key is {@code null}
+	 */
+	public static boolean contains(Context ctx, String key) {
+		if (key == null)
+			throw new NullPointerException("Null keys are not permitted");
+		return getPrefs(ctx).contains(key);
+	}
+
+	/**
+	 * Wraps {@link android.content.SharedPreferences#getAll()}. Since you must
+	 * not modify the collection returned by this method, or alter any of its
+	 * contents, this method returns an <em>unmodifiableMap</em> representing
+	 * the preferences.
+	 *
+	 * @param ctx
+	 *            the context the SharedPreferences belong to
+	 * @return an <em>unmodifiableMap</em> containing a list of key/value pairs
+	 *         representing the preferences
+	 * @throws NullPointerException
+	 *             as per the docs of getAll() - does not say when
+	 */
+	public static Map<String, ?> getAll(Context ctx) {
+		return Collections.unmodifiableMap(getPrefs(ctx).getAll());
+	}
+
+	/**
+	 * Wraps {@link android.content.SharedPreferences.Editor#clear()}. See its
+	 * docs for clarifications. Calls
+	 * {@link android.content.SharedPreferences.Editor#commit()}
+	 *
+	 * @param ctx
+	 *            the context the SharedPreferences belong to
+	 * @return true if the preferences were successfully cleared, false
+	 *         otherwise
+	 */
+	public static boolean clear(Context ctx) {
+		return getPrefs(ctx).edit().clear().commit();
+	}
+
+	/**
+	 * Wraps {@link android.content.SharedPreferences.Editor#remove(String)}.
+	 * See its docs for clarifications. Calls
+	 * {@link android.content.SharedPreferences.Editor#commit()}.
+	 *
+	 * @param ctx
+	 *            the context the SharedPreferences belong to
+	 * @param key
+	 *            the preference's key, must not be {@code null}
+	 * @return true if the key was successfully removed, false otherwise
+	 * @throws NullPointerException
+	 *             if key is {@code null}
+	 */
+	public static boolean remove(Context ctx, String key) {
+		if (key == null)
+			throw new NullPointerException("Null keys are not permitted");
+		return getPrefs(ctx).edit().remove(key).commit();
 	}
 
 	/**

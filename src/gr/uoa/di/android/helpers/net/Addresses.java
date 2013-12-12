@@ -14,6 +14,17 @@ import java.net.SocketException;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Needed manifest permissions :
+ * <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+ *
+ * Test functions :
+ * Addresses.getMACAddress("wlan0"); Addresses.getMACAddress("eth0");
+ * Addresses.getIPAddress(true); // IPv4 Addresses.getIPAddress(false); // IPv6
+ *
+ * @see <a href= "http://stackoverflow.com/questions/6064510>How to get
+ *      ip-address of the device</a >
+ */
 public final class Addresses {
 
 	private Addresses() {}
