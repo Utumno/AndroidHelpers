@@ -8,8 +8,6 @@ import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.util.Log;
 
-import gr.uoa.di.java.helpers.Utils;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -27,7 +25,7 @@ public final class Net {
 	private static final String TAG = Net.class.getName();
 	// multipart values
 	private static final CharSequence CRLF = "\r\n";
-	private static final String charsetForMultipartHeaders = Utils.UTF8;
+	private static final String charsetForMultipartHeaders = "UTF-8";
 
 	/**
 	 * Check if connected to a wireless network
