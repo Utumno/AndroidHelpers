@@ -3,7 +3,9 @@ package gr.uoa.di.android.helpers;
 import android.content.Context;
 import android.content.pm.PackageManager;
 
-public class Utils {
+public final class Utils {
+
+	private Utils() {}
 
 	public static void assertPermission(Context ctx, String perm) {
 		final int checkPermission = ctx.getPackageManager().checkPermission(

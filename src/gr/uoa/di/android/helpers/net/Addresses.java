@@ -98,7 +98,7 @@ public final class Addresses {
 	public static String getMACAddress(String interfaceName)
 			throws SocketException {
 		if (android.os.Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
-			throw new IllegalStateException("You can use getMACAddress() only "
+			throw new RuntimeException("You can use getMACAddress() only "
 				+ "after API " + Build.VERSION_CODES.GINGERBREAD);
 		}
 		List<NetworkInterface> interfaces = Collections.list(NetworkInterface
