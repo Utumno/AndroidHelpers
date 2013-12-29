@@ -17,18 +17,18 @@ public final class WifiWaker {
 
 	private final static String TAG = WifiWaker.class.getSimpleName();
 	private BroadcastReceiver mConnectionReceiver;
-	private final CountDownLatch latch_;
+	private final AbordableLatch latch_;
 
 	/**
 	 * Provide a latch with count 1 to have the methods of this class wait upon.
 	 *
 	 * @param latch
 	 *            the latch on which the methods wait - must have count one
+	 * @throws IllegalArgumentException
+	 *             if the latch does not have count 1
 	 */
 	public WifiWaker(CountDownLatch latch) {
-		if (latch.getCount() != 1)
-			throw new IllegalArgumentException("The latch must have count 1");
-		this.latch_ = latch;
+		this.latch_ = new AbordableLatch(latch);
 	}
 
 	/**
@@ -93,7 +93,10 @@ public final class WifiWaker {
 				// await should be false if latch timed out
 				return await;
 			} catch (InterruptedException e) {
-				w("Interrupted while waiting for connection", e);
+				if (e instanceof AbordableLatch.AbordingException) {
+					w("Interrupted while waiting for connection: "
+						+ e.getMessage());
+				} else w("Interrupted while waiting for connection", e);
 				return false;
 			} finally {
 				stopMonitoringConnection(ctx);
@@ -104,11 +107,11 @@ public final class WifiWaker {
 
 	private final static class WifiConnectionMonitor extends BroadcastReceiver {
 
-		private final CountDownLatch latch_;
-		private final static String TAG = BroadcastReceiver.class
+		private final AbordableLatch latch_;
+		private final static String TAG2 = WifiConnectionMonitor.class
 			.getSimpleName();
 
-		WifiConnectionMonitor(CountDownLatch latch) {
+		WifiConnectionMonitor(AbordableLatch latch) {
 			super();
 			this.latch_ = latch;
 		}
@@ -124,7 +127,7 @@ public final class WifiWaker {
 				d("NETWORK_STATE_CHANGED_ACTION :" + networkInfo);
 				if (networkInfo.isConnected()) {
 					d("Wifi is connected!");
-					latch_.countDown(); // COUNT DOWN HERE
+					latch_.succeed(); // COUNT DOWN HERE
 				}
 			} else if (ConnectivityManager.CONNECTIVITY_ACTION.equals(action)) {
 				@SuppressWarnings("deprecation")
@@ -153,6 +156,13 @@ public final class WifiWaker {
 					+ wifiState(in, WifiManager.EXTRA_WIFI_STATE)
 					+ " - EXTRA_PREVIOUS_WIFI_STATE: "
 					+ wifiState(in, WifiManager.EXTRA_PREVIOUS_WIFI_STATE));
+				final int intExtra = in.getIntExtra(
+					WifiManager.EXTRA_WIFI_STATE, -1);
+				String msg = null;
+				if (intExtra == WifiManager.WIFI_STATE_DISABLING) msg = "Wireless disabling";
+				else if (intExtra == WifiManager.WIFI_STATE_DISABLED)
+					msg = "Wireless disabled";
+				if (msg != null) latch_.abort(msg);
 			}
 		}
 
@@ -186,7 +196,7 @@ public final class WifiWaker {
 		}
 
 		private static void d(String string) {
-			Log.d(TAG, string);
+			Log.d(TAG2, string);
 		}
 	}
 
@@ -218,5 +228,53 @@ public final class WifiWaker {
 
 	private static void d(String string) {
 		Log.d(TAG, string);
+	}
+
+	/**
+	 * Latch wrapper to be able throw an exception instead just counting down.
+	 * See <a href="http://stackoverflow.com/a/10453959/281545">here</a> for the
+	 * idea and variations. Must have count of one, otherwise
+	 * IllegalArgumentException is thrown on construction.
+	 */
+	private static final class AbordableLatch {
+
+		public class AbordingException extends InterruptedException {
+
+			private static final long serialVersionUID = 6999070510289378029L;
+
+			public AbordingException(String message) {
+				super(message);
+			}
+		}
+
+		private final CountDownLatch latch;
+		private boolean aborted;
+		private String message = "";
+
+		public AbordableLatch(CountDownLatch latch) {
+			if (latch.getCount() != 1)
+				throw new IllegalArgumentException(
+					"The latch must have count 1");
+			this.latch = latch; // no copy cstor
+		}
+
+		boolean await(long latchTimeout, TimeUnit milliseconds)
+				throws InterruptedException {
+			final boolean notTimedOut = latch.await(latchTimeout, milliseconds);
+			if (aborted) {
+				throw new AbordingException(message);
+			}
+			return notTimedOut;
+		}
+
+		void abort(String msg) {
+			message = msg;
+			aborted = true;
+			latch.countDown();
+		}
+
+		void succeed() {
+			latch.countDown();
+		}
 	}
 }
