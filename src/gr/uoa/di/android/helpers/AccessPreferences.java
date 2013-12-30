@@ -5,6 +5,7 @@ import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
+import android.content.SharedPreferences.OnSharedPreferenceChangeListener;
 import android.os.Build;
 import android.preference.PreferenceManager;
 
@@ -22,6 +23,7 @@ import java.util.Set;
 public final class AccessPreferences {
 
 	private static final List<Class<?>> CLASSES = new ArrayList<Class<?>>();
+	private static SharedPreferences prefs; // cache
 	static {
 		CLASSES.add(String.class);
 		CLASSES.add(Boolean.class);
@@ -33,11 +35,9 @@ public final class AccessPreferences {
 
 	private AccessPreferences() {}
 
-	private static SharedPreferences prefs; // cache
-
 	private static SharedPreferences getPrefs(Context ctx) {
-		// synchronized is not really needed as the same instance of
-		// SharedPreferences will be returned AFAIC but better safe than sorry
+		// synchronized is really needed or volatile is all I need (visibility)
+		// the same instance of SharedPreferences will be returned AFAIC
 		SharedPreferences result = prefs;
 		if (result == null)
 			synchronized (AccessPreferences.class) {
@@ -391,6 +391,65 @@ public final class AccessPreferences {
 		if (key == null)
 			throw new NullPointerException("Null keys are not permitted");
 		return getPrefs(ctx).edit().remove(key).commit();
+	}
+
+	/**
+	 * Wraps
+	 * {@link android.content.SharedPreferences#registerOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener)}
+	 * .
+	 *
+	 * @param ctx
+	 *            the context the SharedPreferences belong to
+	 * @param lis
+	 *            the listener, must not be null
+	 * @throws NullPointerException
+	 *             if lis is {@code null}
+	 */
+	public static void registerListener(Context ctx,
+			OnSharedPreferenceChangeListener lis) {
+		if (lis == null) throw new NullPointerException("Null listener");
+		getPrefs(ctx).registerOnSharedPreferenceChangeListener(lis);
+	}
+
+	/**
+	 * Wraps
+	 * {@link android.content.SharedPreferences#unregisterOnSharedPreferenceChangeListener(OnSharedPreferenceChangeListener)}
+	 * .
+	 *
+	 * @param ctx
+	 *            the context the SharedPreferences belong to
+	 * @param lis
+	 *            the listener, must not be null
+	 * @throws NullPointerException
+	 *             if lis is {@code null}
+	 */
+	public static void unregisterListener(Context ctx,
+			OnSharedPreferenceChangeListener lis) {
+		if (lis == null) throw new NullPointerException("Null listener");
+		getPrefs(ctx).unregisterOnSharedPreferenceChangeListener(lis);
+	}
+
+	/**
+	 * Wraps
+	 * {@link android.content.SharedPreferences.OnSharedPreferenceChangeListener#onSharedPreferenceChanged(SharedPreferences, String)}
+	 * .
+	 *
+	 * @param ctx
+	 *            the context the SharedPreferences belong to
+	 * @param lis
+	 *            the listener, must not be null
+	 * @param key
+	 *            the key we want to run onSharedPreferenceChanged on, must not
+	 *            be null
+	 * @throws NullPointerException
+	 *             if lis or key is {@code null}
+	 */
+	public static void callListener(Context ctx,
+			OnSharedPreferenceChangeListener lis, String key) {
+		if (lis == null) throw new NullPointerException("Null listener");
+		if (key == null)
+			throw new NullPointerException("Null keys are not permitted");
+		lis.onSharedPreferenceChanged(getPrefs(ctx), key);
 	}
 
 	/**
