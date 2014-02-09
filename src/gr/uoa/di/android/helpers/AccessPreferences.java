@@ -165,7 +165,7 @@ public final class AccessPreferences {
 			// primitives) - can be retrieved as anything but if you give get()
 			// a default non null value it will give this default value back
 			ed.putString(key, null);
-			// btw the signature is given by the comiler as :
+			// btw the signature is given by the compiler as :
 			// <Object> void
 			// gr.uoa.di.android.helpers.AccessPreferences.put(Context ctx,
 			// String key, Object value)
@@ -196,15 +196,14 @@ public final class AccessPreferences {
 
 	/**
 	 * Wrapper around {@link android.content.SharedPreferences.Editor}
-	 * {@code get()} methods. Null keys are not permitted. Attempts to insert a
-	 * retrive a preference with a null key will throw NullPointerException. As
-	 * far as the type system is concerned T is of the type the variable that is
-	 * to receive the default value is. You will get a
-	 * {@link ClassCastException} if you put() in a value of type T and try to
-	 * get() a value of different type Y - except if you specify a null default
-	 * *where you will get the CCE only if you try to assign the get() return
-	 * value to a variable of type Y, _in the assignment_ after get() returns*.
-	 * So don't do this :
+	 * {@code get()} methods. Null keys are not permitted. Attempts to retrieve
+	 * a preference with a null key will throw NullPointerException. As far as
+	 * the type system is concerned T is of the type the variable that is to
+	 * receive the default value is. You will get a {@link ClassCastException}
+	 * if you put() in a value of type T and try to get() a value of different
+	 * type Y - except if you specify a null default *where you will get the CCE
+	 * only if you try to assign the get() return value to a variable of type Y,
+	 * _in the assignment_ after get() returns*. So don't do this :
 	 *
 	 * <pre>
 	 * AccessPreferences.put(ctx, BOOLEAN_KEY, DEFAULT_BOOLEAN);

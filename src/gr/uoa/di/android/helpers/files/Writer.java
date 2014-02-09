@@ -285,5 +285,5 @@ public final class Writer {
 
 interface OutputStreamAction {
 
-	void useStream(final OutputStream stream) throws IOException;
+	void useStream(OutputStream stream) throws IOException;
 }
